@@ -1,6 +1,6 @@
 {
   "name": "usage-band",
-  "version": "0.2.2",
+  "version": "0.3.6",
   "description": "Banda d'uso: cache, contesto, limiti 5h/settimana, costo; pannello Dettagli, suggerimenti next e handoff a nuova sessione al 50% di contesto",
   "author": { "name": "Fabio Zambelli" },
   "types": "./types/index.d.ts"

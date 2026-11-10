@@ -93,7 +93,10 @@ describe('usage-band', () => {
       const ui = await $.ui.mount({ plugin: 'usage-band', surface, component: 'AbovePrompt', props: { hasSurvey: false, isWorking: false, maxRows: 10, bodyColumns: 140, scroll: { offset: 0, bodyRows: 10 }, view: {} } })
       expect(await ui.find({ key: 'handoff' })).toBeDefined()
       expect(await ui.find({ key: 'details' })).toBeDefined()
+      expect(await ui.find({ key: 'wiki' })).toBeUndefined()
       expect(await ui.find({ type: 'Text', text: /cache/ })).toBeDefined()
+      // Il tempo al reset è scritto per esteso: il simbolo ↻ si sovrapponeva alla prima cifra
+      expect(await ui.find({ type: 'Text', text: /reset 2h10/ })).toBeDefined()
       await ui.unmount()
     }
   })
@@ -111,7 +114,33 @@ describe('usage-band', () => {
     const ui = await $.ui.mount({ plugin: 'usage-band', surface: 'vscode', component: 'Pane', requestId: 'usage-band', props: { title: 'Uso', isFocused: false, bodyColumns: 80, placement: 'dock', scroll: { offset: 0, bodyRows: 30 }, view: {} } })
     expect(await ui.find({ key: 'handoff' })).toBeDefined()
     expect(await ui.find({ key: 'details' })).toBeDefined()
+    expect(await ui.find({ key: 'wiki' })).toBeUndefined()
     expect(await ui.find({ type: 'Text', text: /contesto/ })).toBeDefined()
+    await ui.unmount()
+  })
+
+  // Regressione 2026-10-15: nella vista handoff una variabile locale `h` oscurava il factory JSX
+  // ("h is not a function") e il pannello restava vuoto dopo la pressione del tasto
+  test('il tasto handoff mostra il riassunto nel pannello di VS Code', async ($, on) => {
+    const now = Date.parse('2026-10-15T10:00:00Z')
+    on('clock.now', () => ({ value: now }))
+    on('session.usage', () => ({
+      value: { startedAt: now - 1000, context: { tokens: 600000, window: 1000000, percent: 60 }, rateLimits: [], cost: { usd: 1.5 } },
+    }))
+    on('ui.open', () => ({ value: { isPlaced: true } }) as any)
+    on('ui.invalidate', () => ({ value: undefined }) as any)
+    on('model.fork', () => ({ value: { isAnswered: true, text: 'PROMPT DI PROVA', usage: { input_tokens: 1, output_tokens: 1, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 } } }) as any)
+    on('ui.render', ($, e) => {
+      const { Text } = $.ui.resolve(e)
+      return <Text dimColor>motore</Text>
+    })
+    const ui = await $.ui.mount({ plugin: 'usage-band', surface: 'vscode', component: 'Pane', requestId: 'usage-band', props: { title: 'Uso', isFocused: false, bodyColumns: 80, placement: 'dock', scroll: { offset: 0, bodyRows: 30 }, view: {} } })
+    await ui.press({ key: 'handoff' })
+    await new Promise(r => setTimeout(r, 300))
+    expect(await ui.find({ type: 'Text', text: /Handoff · nuova sessione/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /PROMPT DI PROVA/ })).toBeDefined()
+    expect(await ui.find({ key: 'go' })).toBeDefined()
+    expect(await ui.find({ key: 'cancel' })).toBeDefined()
     await ui.unmount()
   })
 })

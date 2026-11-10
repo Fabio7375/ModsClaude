@@ -280,12 +280,12 @@ function cacheLeft(s: Snap): number | null {
 }
 
 // Linea sottile: la parte piena cambia colore con la saturazione (verde, giallo, rosso)
-function meter(Text: any, percent: number, width = BAR) {
+function meter(Text: any, percent: number, width = BAR, native = false) {
   const b = bar(percent, width)
   return (
     <Text>
       <Text color={levelColor(percent)}>{b.full}</Text>
-      <Text dimColor>{b.empty}</Text>
+      <Text {...dim(native)}>{b.empty}</Text>
     </Text>
   )
 }
@@ -293,6 +293,14 @@ function meter(Text: any, percent: number, width = BAR) {
 const FRAME = '#4b5563'
 const EDGE = '#e5e7eb'
 const AMBER = '#f59e0b'
+// Scheda nativa: colori del tema dell'app, così testo e pulsanti nativi restano leggibili in chiaro e in scuro
+const LIGHT = 'text'
+const MUTED = 'inactive'
+
+// Testo secondario: grigio chiaro sulla scheda nativa scura, dimColor nel terminale
+function dim(native: boolean): { color?: string; dimColor?: boolean } {
+  return native ? { color: MUTED } : { dimColor: true }
+}
 
 export function edgeColor(tone: 'white' | 'amber' = 'white'): string {
   return tone === 'amber' ? AMBER : EDGE
@@ -311,13 +319,19 @@ function action($: Dollar, e: any, o: ActionOpts) {
       </Box>
     )
   }
-  return <Button key={o.key} label={o.label} hotkey={o.hotkey} variant={o.tone === 'amber' ? 'primary' : 'secondary'} onPress={o.onPress} />
+  const { Text } = $.ui.resolve(e)
+  return (
+    <Button key={o.key} label={o.label} hotkey={o.hotkey} variant={o.tone === 'amber' ? 'primary' : 'secondary'} onPress={o.onPress}>
+      <Text color={o.tone === 'amber' ? AMBER : LIGHT}>{o.label}</Text>
+    </Button>
+  )
 }
 
 function cachePiece($: Dollar, e: any, s: Snap) {
   const { Text } = $.ui.resolve(e)
+  const native = e.surface !== 'terminal'
   const left = cacheLeft(s)
-  if (left === null) return <Text key="cache" dimColor>● cache —</Text>
+  if (left === null) return <Text key="cache" {...dim(native)}>● cache —</Text>
   if (left === 0) {
     return (
       <Text key="cache">
@@ -330,7 +344,7 @@ function cachePiece($: Dollar, e: any, s: Snap) {
   return (
     <Text key="cache">
       <Text color={c}>● </Text>
-      <Text dimColor>cache </Text>
+      <Text {...dim(native)}>cache </Text>
       <Text color={c} bold>{minutes}m</Text>
     </Text>
   )
@@ -338,24 +352,25 @@ function cachePiece($: Dollar, e: any, s: Snap) {
 
 function gauge($: Dollar, e: any, key: string, label: string, percent: number | undefined, width: number, extra: string, native = false) {
   const { Text } = $.ui.resolve(e)
-  if (percent === undefined) return <Text key={key} dimColor>{label} —</Text>
+  const onDark = e.surface !== 'terminal'
+  if (percent === undefined) return <Text key={key} {...dim(onDark)}>{label} —</Text>
   const c = levelColor(percent)
   if (native) {
     return (
       <Text key={key}>
-        <Text dimColor>{label} </Text>
-        {extra ? <Text>{extra} </Text> : null}
+        <Text {...dim(onDark)}>{label} </Text>
+        {extra ? <Text color={LIGHT}>{extra} </Text> : null}
         <Text color={c} bold>{Math.round(percent)}% </Text>
-        {meter(Text, percent, width)}
+        {meter(Text, percent, width, onDark)}
       </Text>
     )
   }
   return (
     <Text key={key}>
-      <Text dimColor>{label} </Text>
-      {meter(Text, percent, width)}
+      <Text {...dim(onDark)}>{label} </Text>
+      {meter(Text, percent, width, onDark)}
       <Text color={c} bold> {Math.round(percent)}%</Text>
-      {extra ? <Text dimColor> {extra}</Text> : null}
+      {extra ? <Text {...dim(onDark)}> {extra}</Text> : null}
     </Text>
   )
 }
@@ -367,7 +382,7 @@ function gauges($: Dollar, e: any, s: Snap, width: number, wide: boolean, native
   for (const w of s.usage.rateLimits) {
     const reset = untilReset(w.resetsAt, s.clock)
     const label = native ? (WINDOW_LONG[w.kind] ?? w.kind) : windowLabel(w)
-    out.push(gauge($, e, w.kind, label, w.percentUsed, width, wide && reset ? `↻${reset}` : '', false))
+    out.push(gauge($, e, w.kind, label, w.percentUsed, width, wide && reset ? `reset ${reset}` : '', false))
   }
   return out
 }
@@ -378,11 +393,23 @@ function nextList($: Dollar, e: any, s: Snap): JSX.Element | null {
   const { Box, Button, Text } = $.ui.resolve(e)
   return (
     <Box flexDirection="column" marginTop={0}>
-      <Text color={FRAME}>{native ? 'next:' : '─ next'}</Text>
-      {s.next.map((t, i) => (
-        <Button key={'next' + i} label={t} hotkey={String(i + 1)} plain onPress={() => pickNext($, i)} />
-      ))}
-      <Button key="next0" label="dismiss" hotkey="0" plain dimColor onPress={() => update($, nextA, () => [])} />
+      <Text color={native ? MUTED : FRAME}>{native ? 'next:' : '─ next'}</Text>
+      {s.next.map((t, i) =>
+        native ? (
+          <Button key={'next' + i} label={t} hotkey={String(i + 1)} plain onPress={() => pickNext($, i)}>
+            <Text color={LIGHT}>{t}</Text>
+          </Button>
+        ) : (
+          <Button key={'next' + i} label={t} hotkey={String(i + 1)} plain onPress={() => pickNext($, i)} />
+        ),
+      )}
+      {native ? (
+        <Button key="next0" label="dismiss" hotkey="0" plain onPress={() => update($, nextA, () => [])}>
+          <Text color={MUTED}>dismiss</Text>
+        </Button>
+      ) : (
+        <Button key="next0" label="dismiss" hotkey="0" plain dimColor onPress={() => update($, nextA, () => [])} />
+      )}
     </Box>
   )
 }
@@ -392,16 +419,18 @@ function nativeCard($: Dollar, e: any, s: Snap, margin: boolean) {
   const { Box, Text } = $.ui.resolve(e)
   const advise = s.handoff.phase === 'proposed'
   const all = gauges($, e, s, 6, true, true)
-  const items = [cachePiece($, e, s), ...all, ...(s.usage.cost ? [<Text key="cost" dimColor>costo API {fmtUsd(s.usage.cost.usd)}</Text>] : [])]
+  const items = [cachePiece($, e, s), ...all, ...(s.usage.cost ? [<Text key="cost" color={MUTED}>costo API <Text color={LIGHT}>{fmtUsd(s.usage.cost.usd)}</Text></Text>] : [])]
   return (
-    <Box flexDirection="column" backgroundColor="#202226" borderStyle="round" borderColor="#2f3237" paddingX={2} paddingY={1} marginTop={margin ? 1 : 0}>
-      <Box flexDirection="row" justifyContent="space-between" alignItems="flex-start">
-        <Box flexDirection="row" flexWrap="wrap">
-          {items.flatMap((p, i) => (i === 0 ? [p] : [<Text key={'sep' + i} dimColor>{' | '}</Text>, p]))}
-        </Box>
-        <Box flexDirection="column" alignItems="flex-end">
+    <Box flexDirection="column" borderStyle="round" borderColor="promptBorder" paddingX={2} paddingY={0} marginTop={margin ? 1 : 0}>
+      {/* Una sola riga che va a capo: dati, spaziatore che cresce, due pulsanti in fila a destra */}
+      <Box flexDirection="row" flexWrap="wrap" alignItems="center">
+        {items.flatMap((p, i) => (i === 0 ? [p] : [<Text key={'sep' + i} color={MUTED}>{' | '}</Text>, p]))}
+        <Box key="spacer" flexGrow={1} />
+        <Box key="buttons" flexDirection="row" flexShrink={0} marginLeft={2}>
           {action($, e, { key: 'handoff', label: 'handoff', hotkey: 'h', tone: advise ? 'amber' : 'white', onPress: () => startHandoff($) })}
-          {action($, e, { key: 'details', label: 'dettagli', hotkey: 'd', onPress: () => openDetails($) })}
+          <Box key="gap1" marginLeft={1}>
+            {action($, e, { key: 'details', label: 'dettagli', hotkey: 'd', onPress: () => openDetails($) })}
+          </Box>
         </Box>
       </Box>
       {nextList($, e, s)}
@@ -564,31 +593,32 @@ function paneDetails($: Dollar, e: any, s: Snap, isVscode: boolean) {
   )
 }
 
+// Attenzione: nelle funzioni che disegnano JSX non chiamare nessuna variabile `h`: oscura il factory JSX (`h is not a function`)
 function paneHandoff($: Dollar, e: any, s: Snap) {
   const { Box, Text } = $.ui.resolve(e)
-  const h = s.handoff
+  const hf = s.handoff
   const room = Math.max(6, (e.viewport?.rows ?? 30) - 10)
-  const lines = h.prompt.split('\n')
+  const lines = hf.prompt.split('\n')
   const body = lines.slice(0, room).join('\n')
   const hidden = lines.length - room
 
   return (
     <Box flexDirection="column">
       <Text bold>Handoff · nuova sessione</Text>
-      {h.phase === 'working' ? <Text dimColor>Riassunto in corso…</Text> : null}
-      {h.phase === 'applying' ? <Text dimColor>/clear e invio del prompt…</Text> : null}
-      {h.phase === 'error' ? <Text color="red">{h.error ?? 'errore'}</Text> : null}
-      {h.phase === 'ready' || h.phase === 'applying' ? (
+      {hf.phase === 'working' ? <Text dimColor>Riassunto in corso…</Text> : null}
+      {hf.phase === 'applying' ? <Text dimColor>/clear e invio del prompt…</Text> : null}
+      {hf.phase === 'error' ? <Text color="red">{hf.error ?? 'errore'}</Text> : null}
+      {hf.phase === 'ready' || hf.phase === 'applying' ? (
         <Box flexDirection="column">
-          {h.error ? <Text color="red">Invio non riuscito: {h.error}</Text> : null}
+          {hf.error ? <Text color="red">Invio non riuscito: {hf.error}</Text> : null}
           <Text>{body}</Text>
           {hidden > 0 ? <Text dimColor>… altre {hidden} righe (partono comunque)</Text> : null}
         </Box>
       ) : null}
       <Box flexDirection="row" columnGap={1} marginTop={1}>
-        {h.phase === 'ready' ? action($, e, { key: 'go', label: 'avvia nuova sessione', hotkey: 's', tone: 'amber', onPress: () => applyHandoff($) }) : null}
-        {h.phase === 'ready' ? action($, e, { key: 'jev', label: 'compatta qui (Jev)', hotkey: 'j', onPress: () => compactHere($) }) : null}
-        {h.phase === 'error' ? action($, e, { key: 'retry', label: 'riprova', hotkey: 'r', onPress: () => startHandoff($) }) : null}
+        {hf.phase === 'ready' ? action($, e, { key: 'go', label: 'avvia nuova sessione', hotkey: 's', tone: 'amber', onPress: () => applyHandoff($) }) : null}
+        {hf.phase === 'ready' ? action($, e, { key: 'jev', label: 'compatta qui (Jev)', hotkey: 'j', onPress: () => compactHere($) }) : null}
+        {hf.phase === 'error' ? action($, e, { key: 'retry', label: 'riprova', hotkey: 'r', onPress: () => startHandoff($) }) : null}
         {action($, e, { key: 'cancel', label: 'annulla', hotkey: 'x', onPress: () => cancelHandoff($) })}
       </Box>
     </Box>
