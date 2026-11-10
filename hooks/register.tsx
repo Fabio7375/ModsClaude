@@ -724,7 +724,9 @@ export const register: Register = on => {
     await $.command.register({ name: 'uso', description: 'Apre il pannello Dettagli: contesto, cache, token, limiti e costo' })
     await $.command.register({ name: 'handoff', description: 'Riassume la sessione, fa /clear e riparte in una sessione nuova' })
     const surfaces = await $.session.surfaces()
-    if (e.surface === 'vscode' || surfaces.includes('vscode')) {
+    // La banda sopra il prompt esiste solo su terminale e desktop: altrove (VS Code, web, mobile) si usa il pannello
+    const hasBand = surfaces.some(s => s === 'terminal' || s === 'desktop')
+    if (e.surface === 'vscode' || surfaces.includes('vscode') || !hasBand) {
       isVscode = true
       await update($, viewA, () => 'band')
       void $.ui.open({ id: PANE, title: 'Uso' })
