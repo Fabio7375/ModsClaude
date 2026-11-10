@@ -19,7 +19,7 @@ Funzioni aggiuntive:
 Al prompt di una sessione Claude Code nel terminale:
 
 ```
-/plugin install usage-band --marketplace <utente>/usage-band
+/plugin install usage-band --marketplace fabio7375/usage-band
 ```
 
 Rispondi `y` per aggiungere il marketplace, poi scegli l'ambito di installazione.
@@ -27,7 +27,7 @@ Rispondi `y` per aggiungere il marketplace, poi scegli l'ambito di installazione
 Da shell:
 
 ```bash
-claude plugin install usage-band --marketplace <utente>/usage-band
+claude plugin install usage-band --marketplace fabio7375/usage-band
 ```
 
 ## Requisiti
